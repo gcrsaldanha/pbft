@@ -10,9 +10,9 @@
 #define PRIMARY 1
 #define MPI_REQUEST_TAG INT_MAX
 
-MPI_Status status;
 int my_rank, p, view = 1;
 int f;
+MPI_Status status;
 MPI_Datatype mpi_request;
 MPI_Datatype mpi_pre_prepare;
 MPI_Datatype mpi_prepare;
@@ -148,9 +148,6 @@ void replica()
 
 int main(int argc, char **argv)
 {
-
-    //request *req = (request*)malloc(sizeof(request));
-
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &p);

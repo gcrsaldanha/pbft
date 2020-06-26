@@ -4,6 +4,7 @@
 #include <omp.h>
 #include <mpi.h>
 #include <stddef.h>
+#include <limits.h>
 #include "Messages.h"
 
 #define CLIENT 0
@@ -30,12 +31,11 @@ int prepared(request req, int sequence_number)
         received_prepares[i] = -1;
     received_prepares[my_rank - 1] = 1;
 
-    for (i = 1; i < p; i++)
+    for (i = 2; i < p; i++)
     {
         if (i != my_rank)
         {
             MPI_Recv(&prep, 1, mpi_prepare, i, sequence_number, MPI_COMM_WORLD, &status);
-
             received_prepares[i - 1] = (prep.process_id == status.MPI_SOURCE && prep.view == view && prep.sequence_number == sequence_number);
         }
     }
@@ -47,12 +47,12 @@ int prepared(request req, int sequence_number)
         if (received_prepares[i] == 1)
             counter++;
     }
-
-    return counter == 2 * f + 1;
+    //printf("[%d].Counter: %d", my_rank, counter);
+    return counter >= 2 * f;
 }
 void client()
 {
-    printf("Sou o cliente\n");
+    //printf("Sou o cliente\n");
 
     request req;
     req.timestamp = MPI_Wtime();
@@ -65,12 +65,12 @@ void client()
 void primary()
 {
 
-    printf("Sou o líder\n");
+    //printf("Sou o líder\n");
 
     request req;
     MPI_Recv(&req, 1, mpi_request, CLIENT, MPI_REQUEST_TAG, MPI_COMM_WORLD, &status);
 
-    printf("[%d].Request timestamp:%f type:%d", my_rank, req.timestamp, req.request_type);
+    printf("[%d].Request timestamp:%f type:%d\n", my_rank, req.timestamp, req.request_type);
 
     int sequence_number = 1;
 
@@ -88,8 +88,8 @@ void primary()
         MPI_Send(&req, 1, mpi_request, i, sequence_number, MPI_COMM_WORLD);
     }
 
-    printf("[&d].Pre-prepare enviado.\n", my_rank);
-    printf("[&d].Pre-prepare adcionado ao log.\n", my_rank);
+    printf("[%d].Pre-prepare enviado.\n", my_rank);
+    printf("[%d].Pre-prepare adcionado ao log.\n", my_rank);
 
     //Predicado prepared()
     if (!prepared(req, sequence_number))
@@ -98,6 +98,8 @@ void primary()
       Usar MPI_ABORT?
       int MPI_Abort(MPI_Comm comm, int errorcode)
     */
+    
+    printf("[%d].Preparado.\n", my_rank);
 }
 void replica()
 {
@@ -123,7 +125,7 @@ void replica()
     if (req.request_type != p_prep.request_type)
         return;
 
-    printf("[%d]. Pre-prepare aceito.\n", my_rank);
+    printf("[%d].Pre-prepare aceito.\n", my_rank);
 
     prepare prep;
     prep.view = view;
@@ -138,12 +140,14 @@ void replica()
             MPI_Send(&prep, 1, mpi_prepare, i, sequence_number, MPI_COMM_WORLD);
         }
     }
-    printf("[%d]. Prepare enviado.\n", my_rank);
-    printf("[%d]. Pre-prepare adcionado ao log.\n", my_rank);
-    printf("[%d]. Prepare adcionado ao log.\n", my_rank);
+    printf("[%d].Prepare enviado.\n", my_rank);
+    printf("[%d].Pre-prepare adcionado ao log.\n", my_rank);
+    printf("[%d].Prepare adcionado ao log.\n", my_rank);
 
     if (!prepared(req, sequence_number))
         return;
+    
+    printf("[%d].Preparado.\n", my_rank);
 }
 
 int main(int argc, char **argv)
@@ -166,6 +170,7 @@ int main(int argc, char **argv)
     MPI_Datatype request_types[2] = {MPI_DOUBLE, MPI_INT};
 
     MPI_Type_create_struct(2, request_block_length, request_displacements, request_types, &mpi_request);
+    MPI_Type_commit(&mpi_request);
 
     //Create reply mpi type
     MPI_Aint reply_displacements[4] = {
@@ -177,7 +182,8 @@ int main(int argc, char **argv)
     int reply_block_length[4] = {1, 1, 1, 1};
     MPI_Datatype reply_types[4] = {MPI_INT, MPI_INT, MPI_DOUBLE, MPI_INT};
 
-    MPI_Type_create_struct(4, reply_block_length, reply_displacements, reply_types, &mpi_request);
+    MPI_Type_create_struct(4, reply_block_length, reply_displacements, reply_types, &mpi_reply);
+    MPI_Type_commit(&mpi_reply);
 
     //Create pre-prepare mpi type
     MPI_Type_contiguous(4, MPI_INT, &mpi_pre_prepare);

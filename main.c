@@ -13,6 +13,7 @@
 
 int my_rank, p, view = 1;
 int f;
+int state = 0;
 MPI_Status status;
 MPI_Datatype mpi_request;
 MPI_Datatype mpi_pre_prepare;
@@ -67,6 +68,8 @@ int commited_local(pre_prepare p_prep, request req)
         if (i != my_rank)
         {
             MPI_Recv(&commit, 1, mpi_commit, i, p_prep.sequence_number, MPI_COMM_WORLD, &status);
+            //printf("[%d].Commit recebido de %d", my_rank, i);
+
             received_commits[i - 1] = (commit.process_id == status.MPI_SOURCE && commit.view == view && commit.sequence_number == p_prep.sequence_number && commit.request_type == p_prep.request_type);
         }
     }
@@ -82,6 +85,20 @@ int commited_local(pre_prepare p_prep, request req)
     return counter >= 2 * f +1;
 }
 
+void execute(request req){
+    switch (req.request_type)
+    {
+    case ADD:
+        state++;
+        break;
+    case SUB:
+        state--;
+        break;
+    default:
+        break;
+    }
+}
+
 void client()
 {
     //printf("Sou o cliente\n");
@@ -93,10 +110,62 @@ void client()
     MPI_Send(&req, 1, mpi_request, PRIMARY, MPI_REQUEST_TAG, MPI_COMM_WORLD);
 
     //todo: aguardar respostas
+    int replies[p-1];
+
+    for (int i = 0; i < p-1; i++)
+    {
+        replies[i] = INT_MIN;
+    }
+    
+
+    reply reply;
+
+    for (int i = 1; i < p; i++)
+    {
+        MPI_Recv(&reply, 1, mpi_reply, i, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+        if (!req.timestamp == reply.timestamp || !reply.process_id == status.MPI_SOURCE)
+        {
+            replies[i-1] = INT_MIN;
+        }
+        else
+        {
+            replies[i-1] = reply.result;
+        }     
+    }
+
+    //Verificação do resultado (f+1)
+
+    int candidate;
+    int counter;
+    for (int i = 0; i < p-1; i++)
+    {
+        candidate = replies[i];
+        counter = 0;
+        for (int j = i; j < p-1; j++)
+        {
+            if(candidate == replies[j])
+            {
+                counter++;
+            }
+        }
+        if (counter >= f+1)
+        {
+            printf("[%d].Resultado: %d\n.", my_rank, candidate );
+            return;
+        }
+        
+        
+    }
+
+    printf("[%d].Consenso não alcançado!", my_rank);
+    
+     
+
 }
 void primary()
 {
-
+    //todo: implementar read
     //printf("Sou o líder\n");
 
     request req;
@@ -126,10 +195,6 @@ void primary()
     //Predicado prepared()
     if (!prepared(req, sequence_number))
         return;
-    /*Return não é a melhor solução.
-      Usar MPI_ABORT?
-      int MPI_Abort(MPI_Comm comm, int errorcode)
-    */
 
     printf("[%d].Preparado.\n", my_rank);
 
@@ -146,8 +211,22 @@ void primary()
 
     printf("[%d].Commit enviado.\n", my_rank);
 
+    //Predicado commited-local
     if (!commited_local(p_prep, req))
         return;
+
+    execute(req);
+
+    reply reply;
+    reply.view = view;
+    reply.process_id = my_rank;
+    reply.timestamp = req.timestamp;
+    reply.result = state;
+
+    MPI_Send(&reply, 1, mpi_reply, CLIENT, sequence_number, MPI_COMM_WORLD);
+
+    printf("[%d].Reply enviado.\n", my_rank);
+    
 }
 void replica()
 {
@@ -201,17 +280,34 @@ void replica()
     commit.view = view;
     commit.sequence_number = sequence_number;
     commit.request_type = req.request_type;
-    commit.process_id = PRIMARY;
+    commit.process_id = my_rank;
 
     for (int i = 1; i < p; i++)
     {
-        MPI_Send(&commit, 1, mpi_commit, i, sequence_number, MPI_COMM_WORLD);
+       if (i != my_rank)
+       {
+            MPI_Send(&commit, 1, mpi_commit, i, sequence_number, MPI_COMM_WORLD);
+       }
     }
 
     printf("[%d].Commit enviado.\n", my_rank);
 
+    //Predicado commited-local
     if (!commited_local(p_prep, req))
         return;
+
+    execute(req);
+
+    reply reply;
+    reply.view = view;
+    reply.process_id = my_rank;
+    reply.timestamp = req.timestamp;
+    reply.result = state;
+
+    MPI_Send(&reply, 1, mpi_reply, CLIENT, sequence_number, MPI_COMM_WORLD);
+
+    printf("[%d].Reply enviado.\n", my_rank);
+
 }
 
 int main(int argc, char **argv)

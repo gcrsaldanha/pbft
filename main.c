@@ -82,10 +82,11 @@ int commited_local(pre_prepare p_prep, request req)
             counter++;
     }
     //printf("[%d].Counter: %d", my_rank, counter);
-    return counter >= 2 * f +1;
+    return counter >= 2 * f + 1;
 }
 
-void execute(request req){
+void execute(request req)
+{
     switch (req.request_type)
     {
     case ADD:
@@ -110,13 +111,12 @@ void client()
     MPI_Send(&req, 1, mpi_request, PRIMARY, MPI_REQUEST_TAG, MPI_COMM_WORLD);
 
     //todo: aguardar respostas
-    int replies[p-1];
+    int replies[p - 1];
 
-    for (int i = 0; i < p-1; i++)
+    for (int i = 0; i < p - 1; i++)
     {
         replies[i] = INT_MIN;
     }
-    
 
     reply reply;
 
@@ -126,48 +126,44 @@ void client()
 
         if (!req.timestamp == reply.timestamp || !reply.process_id == status.MPI_SOURCE)
         {
-            replies[i-1] = INT_MIN;
+            replies[i - 1] = INT_MIN;
         }
         else
         {
-            replies[i-1] = reply.result;
-        }     
+            replies[i - 1] = reply.result;
+        }
     }
 
     //Verificação do resultado (f+1)
 
     int candidate;
     int counter;
-    for (int i = 0; i < p-1; i++)
+    for (int i = 0; i < p - 1; i++)
     {
         candidate = replies[i];
         counter = 0;
-        for (int j = i; j < p-1; j++)
+        for (int j = i; j < p - 1; j++)
         {
-            if(candidate == replies[j])
+            if (candidate == replies[j] && candidate != INT_MIN)
             {
                 counter++;
             }
         }
-        if (counter >= f+1)
+        if (counter >= f + 1)
         {
-            printf("[%d].Resultado: %d\n.", my_rank, candidate );
+            printf("[%d].Resultado: %d\n.", my_rank, candidate);
             return;
         }
-        
-        
     }
 
     printf("[%d].Consenso não alcançado!", my_rank);
-    
-     
-
 }
 void primary()
 {
     //todo: implementar read
     //printf("Sou o líder\n");
 
+    int is_faulty = 0;
     request req;
     MPI_Recv(&req, 1, mpi_request, CLIENT, MPI_REQUEST_TAG, MPI_COMM_WORLD, &status);
 
@@ -194,12 +190,24 @@ void primary()
 
     //Predicado prepared()
     if (!prepared(req, sequence_number))
-        return;
+        is_faulty = 1;
 
-    printf("[%d].Preparado.\n", my_rank);
+    if (!is_faulty)
+    {
+        printf("[%d].Preparado.\n", my_rank);
+    }
 
     commit commit;
-    commit.view = view;
+
+    if (is_faulty)
+    {
+        commit.view = -1;
+    }
+    else
+    {
+        commit.view = view;
+    }
+
     commit.sequence_number = sequence_number;
     commit.request_type = req.request_type;
     commit.process_id = PRIMARY;
@@ -209,28 +217,44 @@ void primary()
         MPI_Send(&commit, 1, mpi_commit, i, sequence_number, MPI_COMM_WORLD);
     }
 
-    printf("[%d].Commit enviado.\n", my_rank);
+    if (!is_faulty)
+    {
+        printf("[%d].Commit enviado.\n", my_rank);
+    }
 
     //Predicado commited-local
     if (!commited_local(p_prep, req))
-        return;
-
-    execute(req);
+        is_faulty = 1;
 
     reply reply;
-    reply.view = view;
+
+    if (is_faulty)
+    {
+        reply.view = -1;
+        reply.result = INT_MIN;
+    }
+    else
+    {
+        execute(req);
+        reply.view = view;
+        reply.result = state;
+    }
+
     reply.process_id = my_rank;
     reply.timestamp = req.timestamp;
-    reply.result = state;
 
     MPI_Send(&reply, 1, mpi_reply, CLIENT, sequence_number, MPI_COMM_WORLD);
 
-    printf("[%d].Reply enviado.\n", my_rank);
-    
+    if (!is_faulty)
+    {
+        printf("[%d].Reply enviado.\n", my_rank);
+    }
 }
 void replica()
 {
     //printf("Sou a replica %d\n", my_rank);
+
+    int is_faulty = 0;
 
     pre_prepare p_prep;
     MPI_Recv(&p_prep, 1, mpi_pre_prepare, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
@@ -238,24 +262,32 @@ void replica()
     int sequence_number = status.MPI_TAG;
 
     // Verifica se o número de sequência da requisição é igual ao do pre-prepare
-    if (p_prep.process_id != status.MPI_SOURCE)
-        return;
-    if (p_prep.sequence_number != sequence_number)
-        return;
-    if (p_prep.view != view)
-        return;
+    if (p_prep.process_id != status.MPI_SOURCE || p_prep.sequence_number != sequence_number || p_prep.view != view)
+        is_faulty = 1;
 
     request req;
     MPI_Recv(&req, 1, mpi_request, MPI_ANY_SOURCE, sequence_number, MPI_COMM_WORLD, &status);
-    if (p_prep.process_id != status.MPI_SOURCE)
-        return;
-    if (req.request_type != p_prep.request_type)
-        return;
 
-    printf("[%d].Pre-prepare aceito.\n", my_rank);
+    //Verifica se o pre-prepare corresponde ao request e se a assinuta é válida
+    if (p_prep.process_id != status.MPI_SOURCE || req.request_type != p_prep.request_type)
+        is_faulty = 1;
+
+    if (!is_faulty)
+    {
+        printf("[%d].Pre-prepare aceito.\n", my_rank);
+    }
 
     prepare prep;
-    prep.view = view;
+
+    if (is_faulty)
+    {
+        prep.view = -1;
+    }
+    else
+    {
+        prep.view = view;
+    }
+
     prep.sequence_number = sequence_number;
     prep.request_type = req.request_type;
     prep.process_id = my_rank;
@@ -267,47 +299,76 @@ void replica()
             MPI_Send(&prep, 1, mpi_prepare, i, sequence_number, MPI_COMM_WORLD);
         }
     }
-    printf("[%d].Prepare enviado.\n", my_rank);
-    printf("[%d].Pre-prepare adcionado ao log.\n", my_rank);
-    printf("[%d].Prepare adcionado ao log.\n", my_rank);
+
+    if (!is_faulty)
+    {
+        printf("[%d].Prepare enviado.\n", my_rank);
+        printf("[%d].Pre-prepare adcionado ao log.\n", my_rank);
+        printf("[%d].Prepare adcionado ao log.\n", my_rank);
+    }
 
     if (!prepared(req, sequence_number))
-        return;
+        is_faulty = 1;
 
-    printf("[%d].Preparado.\n", my_rank);
+    if (!is_faulty)
+    {
+        printf("[%d].Preparado.\n", my_rank);
+    }
 
     commit commit;
-    commit.view = view;
+    if (is_faulty)
+    {
+        commit.view = -1;
+    }
+    else
+    {
+        commit.view = view;
+    }
+
     commit.sequence_number = sequence_number;
     commit.request_type = req.request_type;
     commit.process_id = my_rank;
 
     for (int i = 1; i < p; i++)
     {
-       if (i != my_rank)
-       {
+        if (i != my_rank)
+        {
             MPI_Send(&commit, 1, mpi_commit, i, sequence_number, MPI_COMM_WORLD);
-       }
+        }
     }
 
-    printf("[%d].Commit enviado.\n", my_rank);
+    if (!is_faulty)
+    {
+        printf("[%d].Commit enviado.\n", my_rank);
+    }
 
     //Predicado commited-local
     if (!commited_local(p_prep, req))
-        return;
-
-    execute(req);
+        is_faulty = 1;
 
     reply reply;
-    reply.view = view;
+
+    if (is_faulty)
+    {
+        reply.view = -1;
+        reply.result = INT_MIN;
+    }
+    else
+    {
+        execute(req);
+        reply.view = view;
+        reply.result = state;
+    }
+
     reply.process_id = my_rank;
     reply.timestamp = req.timestamp;
-    reply.result = state;
 
     MPI_Send(&reply, 1, mpi_reply, CLIENT, sequence_number, MPI_COMM_WORLD);
 
-    printf("[%d].Reply enviado.\n", my_rank);
-
+    if (!is_faulty)
+    {
+        printf("[%d].Reply enviado.\n", my_rank);
+    }
 }
 
 int main(int argc, char **argv)

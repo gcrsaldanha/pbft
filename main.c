@@ -50,6 +50,38 @@ int prepared(request req, int sequence_number)
     //printf("[%d].Counter: %d", my_rank, counter);
     return counter >= 2 * f;
 }
+
+int commited_local(pre_prepare p_prep, request req)
+{
+    int received_commits[p - 1];
+    int i;
+
+    commit commit;
+
+    for (i = 0; i < p - 1; i++)
+        received_commits[i] = -1;
+    received_commits[my_rank - 1] = 1;
+
+    for (i = 1; i < p - 1; i++)
+    {
+        if (i != my_rank)
+        {
+            MPI_Recv(&commit, 1, mpi_commit, i, p_prep.sequence_number, MPI_COMM_WORLD, &status);
+            received_commits[i - 1] = (commit.process_id == status.MPI_SOURCE && commit.view == view && commit.sequence_number == p_prep.sequence_number && commit.request_type == p_prep.request_type);
+        }
+    }
+
+    int counter = 0;
+
+    for (i = 0; i < p - 1; i++)
+    {
+        if (received_commits[i] == 1)
+            counter++;
+    }
+    //printf("[%d].Counter: %d", my_rank, counter);
+    return counter >= 2 * f +1;
+}
+
 void client()
 {
     //printf("Sou o cliente\n");
@@ -98,8 +130,24 @@ void primary()
       Usar MPI_ABORT?
       int MPI_Abort(MPI_Comm comm, int errorcode)
     */
-    
+
     printf("[%d].Preparado.\n", my_rank);
+
+    commit commit;
+    commit.view = view;
+    commit.sequence_number = sequence_number;
+    commit.request_type = req.request_type;
+    commit.process_id = PRIMARY;
+
+    for (int i = 2; i < p; i++)
+    {
+        MPI_Send(&commit, 1, mpi_commit, i, sequence_number, MPI_COMM_WORLD);
+    }
+
+    printf("[%d].Commit enviado.\n", my_rank);
+
+    if (!commited_local(p_prep, req))
+        return;
 }
 void replica()
 {
@@ -110,7 +158,7 @@ void replica()
 
     int sequence_number = status.MPI_TAG;
 
-    // Verifica se o número de sequência da requisiçõa é igual ao do pre-prepare
+    // Verifica se o número de sequência da requisição é igual ao do pre-prepare
     if (p_prep.process_id != status.MPI_SOURCE)
         return;
     if (p_prep.sequence_number != sequence_number)
@@ -146,8 +194,24 @@ void replica()
 
     if (!prepared(req, sequence_number))
         return;
-    
+
     printf("[%d].Preparado.\n", my_rank);
+
+    commit commit;
+    commit.view = view;
+    commit.sequence_number = sequence_number;
+    commit.request_type = req.request_type;
+    commit.process_id = PRIMARY;
+
+    for (int i = 1; i < p; i++)
+    {
+        MPI_Send(&commit, 1, mpi_commit, i, sequence_number, MPI_COMM_WORLD);
+    }
+
+    printf("[%d].Commit enviado.\n", my_rank);
+
+    if (!commited_local(p_prep, req))
+        return;
 }
 
 int main(int argc, char **argv)

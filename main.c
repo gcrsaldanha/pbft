@@ -22,7 +22,7 @@ MPI_Datatype mpi_commit;
 MPI_Datatype mpi_reply;
 
 //caso 5 nós
-int faulty_nodes[6] = {0, 0, 0, 0, 0, 0};
+//int faulty_nodes[6] = {0, 0, 0, 0, 0, 0};
 //int faulty_nodes[6] = {0, 0, 1, 0, 0, 0};
 //int faulty_nodes[6] = {0, 0, 1, 1, 0, 0}; //Caso de falha
 //int faulty_nodes[6] = {0, 0, 1, 1, 1, 1}; //Caso de falha
@@ -30,7 +30,7 @@ int faulty_nodes[6] = {0, 0, 0, 0, 0, 0};
 //caso 10 nós
 //int faulty_nodes[11] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 //int faulty_nodes[11] = {0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
-//int faulty_nodes[11] = {0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0};
+int faulty_nodes[11] = {0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0};
 //int faulty_nodes[11] = {0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0}; //Caso de falha
 //int faulty_nodes[11] = {0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1}; //Caso de falha
 
@@ -53,12 +53,14 @@ int prepared(request req, int sequence_number)
         received_prepares[i] = -1;
     received_prepares[my_rank - 1] = 1;
 
+
     for (i = 2; i < p; i++)
     {
         if (i != my_rank)
         {
             MPI_Recv(&prep, 1, mpi_prepare, i, sequence_number, MPI_COMM_WORLD, &status);
             received_prepares[i - 1] = (prep.process_id == status.MPI_SOURCE && prep.view == view && prep.sequence_number == sequence_number);
+            //printf("[%d]. Prepare recebido de %d. View %d\n", my_rank, prep.process_id, prep.view);
         }
     }
 
@@ -69,7 +71,7 @@ int prepared(request req, int sequence_number)
         if (received_prepares[i] == 1)
             counter++;
     }
-    //printf("[%d].Counter: %d", my_rank, counter);
+    //printf("[%d].Counter: %d\n", my_rank, counter);
     return counter >= 2 * f;
 }
 
@@ -84,12 +86,12 @@ int commited_local(pre_prepare p_prep, request req)
         received_commits[i] = -1;
     received_commits[my_rank - 1] = 1;
 
-    for (i = 1; i < p - 1; i++)
+    for (i = 1; i < p; i++)
     {
         if (i != my_rank)
         {
             MPI_Recv(&commit, 1, mpi_commit, i, p_prep.sequence_number, MPI_COMM_WORLD, &status);
-            //printf("[%d].Commit recebido de %d", my_rank, i);
+            //printf("[%d].Commit recebido de %d. View %d\n", my_rank, i, commit.view);
 
             received_commits[i - 1] = (commit.process_id == status.MPI_SOURCE && commit.view == view && commit.sequence_number == p_prep.sequence_number && commit.request_type == p_prep.request_type);
         }
@@ -177,7 +179,7 @@ void client()
         }
     }
 
-    printf("[%d].Consenso não alcançado!", my_rank);
+    printf("[%d].Consenso não alcançado!\n", my_rank);
 }
 void primary()
 {

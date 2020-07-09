@@ -4,6 +4,7 @@
 
 #define ADD 1
 #define SUB 2
+#define READ 0
 
 typedef struct Request
 {

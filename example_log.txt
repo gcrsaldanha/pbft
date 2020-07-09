@@ -1,0 +1,29 @@
+[1].Request timestamp:12678.777205 type:1
+[1].Pre-prepare enviado.
+[1].Pre-prepare adcionado ao log.
+[2].Pre-prepare aceito.
+[2].Prepare enviado.
+[2].Pre-prepare adcionado ao log.
+[2].Prepare adcionado ao log.
+[2].Preparado.
+[2].Commit enviado.
+[2].Reply enviado.
+[3].Pre-prepare aceito.
+[3].Prepare enviado.
+[3].Pre-prepare adcionado ao log.
+[3].Prepare adcionado ao log.
+[3].Preparado.
+[3].Commit enviado.
+[3].Reply enviado.
+[4].Pre-prepare aceito.
+[4].Prepare enviado.
+[4].Pre-prepare adcionado ao log.
+[4].Prepare adcionado ao log.
+[4].Preparado.
+[4].Commit enviado.
+[4].Reply enviado.
+[1].Preparado.
+[1].Commit enviado.
+[1].Reply enviado.
+[0].Resultado: 1
+.

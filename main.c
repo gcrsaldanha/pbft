@@ -21,7 +21,9 @@ MPI_Datatype mpi_prepare;
 MPI_Datatype mpi_commit;
 MPI_Datatype mpi_reply;
 
-int faulty_nodes[20] = {0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+int faulty_nodes[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+
 
 int prepared(request req, int sequence_number)
 {
@@ -422,6 +424,13 @@ int main(int argc, char **argv)
     MPI_Type_contiguous(4, MPI_INT, &mpi_commit);
     MPI_Type_commit(&mpi_commit);
 
+    /*
+    FILE *log_file;
+    char file_path[20]; 
+    sprintf(file_path, "./logs/log_%d.txt", my_rank);
+    printf("%s\n", file_path);
+    log_file = fopen(file_path, "w+"); 
+    */
     if (my_rank == 0)
     {
         client();
@@ -434,6 +443,8 @@ int main(int argc, char **argv)
     {
         replica();
     }
+    
+    //fclose(log_file);
 
     MPI_Finalize();
 }

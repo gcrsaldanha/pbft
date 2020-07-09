@@ -1,2 +1,2 @@
 #!/bin/bash
-grep -Fw "[$0]" log.txt
+grep -Fw "[$1]" log.txt | echo

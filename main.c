@@ -21,8 +21,25 @@ MPI_Datatype mpi_prepare;
 MPI_Datatype mpi_commit;
 MPI_Datatype mpi_reply;
 
-int faulty_nodes[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+//caso 5 nós
+int faulty_nodes[6] = {0, 0, 0, 0, 0, 0};
+//int faulty_nodes[6] = {0, 0, 1, 0, 0, 0};
+//int faulty_nodes[6] = {0, 0, 1, 1, 0, 0}; //Caso de falha
+//int faulty_nodes[6] = {0, 0, 1, 1, 1, 1}; //Caso de falha
 
+//caso 10 nós
+//int faulty_nodes[11] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+//int faulty_nodes[11] = {0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+//int faulty_nodes[11] = {0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0};
+//int faulty_nodes[11] = {0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0}; //Caso de falha
+//int faulty_nodes[11] = {0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1}; //Caso de falha
+
+//caso 20 nós
+//int faulty_nodes[21] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+//int faulty_nodes[21] = {0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+//int faulty_nodes[21] = {0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+//int faulty_nodes[21] = {0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; //Caso de falha
+//int faulty_nodes[21] = {0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}; //Caso de falha
 
 
 int prepared(request req, int sequence_number)
@@ -155,7 +172,7 @@ void client()
         }
         if (counter >= f + 1)
         {
-            printf("[%d].Resultado: %d\n.", my_rank, candidate);
+            printf("[%d].Resultado: %d.\n", my_rank, candidate);
             return;
         }
     }

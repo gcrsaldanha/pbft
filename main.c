@@ -21,6 +21,8 @@ MPI_Datatype mpi_prepare;
 MPI_Datatype mpi_commit;
 MPI_Datatype mpi_reply;
 
+int faulty_nodes[20] = {0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+
 int prepared(request req, int sequence_number)
 {
     int received_prepares[p - 1];
@@ -124,7 +126,7 @@ void client()
     {
         MPI_Recv(&reply, 1, mpi_reply, i, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
-        if (!req.timestamp == reply.timestamp || !reply.process_id == status.MPI_SOURCE)
+        if (!req.timestamp == reply.timestamp || !reply.process_id == status.MPI_SOURCE || reply.view == -1)
         {
             replies[i - 1] = INT_MIN;
         }
@@ -254,10 +256,15 @@ void replica()
 {
     //printf("Sou a replica %d\n", my_rank);
 
-    int is_faulty = 0;
+    int is_faulty = faulty_nodes[my_rank];
+
+    if (is_faulty)
+    {
+        printf("[%d]. Sou defeituoso!\n", my_rank);
+    }
 
     pre_prepare p_prep;
-    MPI_Recv(&p_prep, 1, mpi_pre_prepare, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+    MPI_Recv(&p_prep, 1, mpi_pre_prepare, PRIMARY, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
     int sequence_number = status.MPI_TAG;
 
@@ -266,7 +273,7 @@ void replica()
         is_faulty = 1;
 
     request req;
-    MPI_Recv(&req, 1, mpi_request, MPI_ANY_SOURCE, sequence_number, MPI_COMM_WORLD, &status);
+    MPI_Recv(&req, 1, mpi_request, PRIMARY, sequence_number, MPI_COMM_WORLD, &status);
 
     //Verifica se o pre-prepare corresponde ao request e se a assinuta é válida
     if (p_prep.process_id != status.MPI_SOURCE || req.request_type != p_prep.request_type)
